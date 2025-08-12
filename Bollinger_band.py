@@ -11,6 +11,19 @@ TAKE_PROFIT_PIPS = 40
 PIP_VALUE = 0.0001
 SPREAD = 0.0005
 
+# === ALWAYS CREATE SAMPLE DATA ===
+np.random.seed(42)
+dates = pd.date_range(start="2024-01-01", periods=300, freq="H")
+price = 1.1000 + np.cumsum(np.random.randn(len(dates)) * 0.0005)
+df_sample = pd.DataFrame({
+    "Gmt time": dates,
+    "Open": price,
+    "High": price + np.random.rand(len(dates)) * 0.0010,
+    "Low": price - np.random.rand(len(dates)) * 0.0010,
+    "Close": price + (np.random.rand(len(dates)) - 0.5) * 0.0010
+})
+df_sample.to_csv(FILE, index=False)
+
 # === LOAD DATA ===
 df = pd.read_csv(FILE)
 df.columns = df.columns.str.strip()
@@ -157,12 +170,12 @@ fig.add_trace(go.Table(
     cells=dict(values=[metrics_names, metrics_values],
                fill_color='lightgray',
                align='left',
-               font=dict(color='black', size=12))),
+               font=dict(color='black', size=12)) ),
     row=3, col=1)
 
 # Layout Settings
 fig.update_layout(
-    title="📈 Bollinger Band Strategy with Real Market Data and Performance Metrics",
+    title="📈 Bollinger Band Strategy with Generated Market Data and Performance Metrics",
     xaxis_rangeslider_visible=False,
     template='plotly_dark',
     height=900,
