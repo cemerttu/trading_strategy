@@ -10,3 +10,61 @@
 
 >tell the chart gpt that: how can you put oscillator has a revesals.
 
+
+
+
+
+
+//@version=5
+indicator("RSI Pullback with 60/40 Bias & Reversal Detection", shorttitle="RSI Pullback 60/40 + Reversals", overlay=false)
+
+// === INPUTS ===
+rsiLength     = input.int(14, title="RSI Length", minval=1)
+maLength      = input.int(9, title="RSI MA Length", minval=1)
+pullbackBars  = input.int(5, title="Pullback Lookback Bars", minval=1)
+bullLevel     = input.float(60.0, title="Bullish Level", step=0.1)
+bearLevel     = input.float(40.0, title="Bearish Level", step=0.1)
+
+// === CALCULATIONS ===
+rsi   = ta.rsi(close, rsiLength)      // Fast RSI
+rsiMA = ta.ema(rsi, maLength)         // Slow RSI (EMA)
+
+// === BASE CROSS CONDITIONS WITH 60/40 FILTER ===
+baseBullCross = ta.crossover(rsi, rsiMA) and rsi > bullLevel
+baseBearCross = ta.crossunder(rsi, rsiMA) and rsi < bearLevel
+
+// === PULLBACK FILTER ===
+bullPullback = ta.lowest(rsi - rsiMA, pullbackBars) < 0
+bearPullback = ta.highest(rsi - rsiMA, pullbackBars) > 0
+
+// === FINAL SIGNALS (Cross + Pullback) ===
+bullSignal = baseBullCross and bullPullback
+bearSignal = baseBearCross and bearPullback
+
+// === REVERSAL DETECTION BASED ON RSI MA SLOPE ===
+maSlopeUp   = rsiMA > rsiMA[1] and rsiMA[1] <= rsiMA[2] // turning up
+maSlopeDown = rsiMA < rsiMA[1] and rsiMA[1] >= rsiMA[2] // turning down
+
+// === PLOTS ===
+plot(rsi, "RSI", color=color.blue)
+plot(rsiMA, "RSI MA", color=color.orange, linewidth=2)
+hOB = hline(70, "Overbought", color=color.red)
+hOS = hline(30, "Oversold", color=color.green)
+hBull = hline(bullLevel, "Bullish Bias", color=color.new(color.green, 0))
+hBear = hline(bearLevel, "Bearish Bias", color=color.new(color.red, 0))
+fill(hOB, hOS, color.rgb(192, 192, 192, 90))
+
+// === VISUAL MARKERS ===
+// Pullback continuation entries
+plotshape(bullSignal, title="RSI Buy", location=location.bottom, style=shape.triangleup, color=color.green, size=size.small, text="BUY")
+plotshape(bearSignal, title="RSI Sell", location=location.top, style=shape.triangledown, color=color.red, size=size.small, text="SELL")
+
+// Reversal markers (RSI MA turning direction)
+plotshape(maSlopeUp, title="RSI MA Turning Up", location=location.bottom, style=shape.diamond, color=color.blue, size=size.tiny, text="REV UP")
+plotshape(maSlopeDown, title="RSI MA Turning Down", location=location.top, style=shape.diamond, color=color.orange, size=size.tiny, text="REV DN")
+
+// === ALERT CONDITIONS ===
+alertcondition(bullSignal, title="RSI Bullish Pullback Entry", message="RSI crossed above its MA while above 60 after a pullback — BUY signal!")
+alertcondition(bearSignal, title="RSI Bearish Pullback Entry", message="RSI crossed below its MA while below 40 after a pullback — SELL signal!")
+alertcondition(maSlopeUp, title="RSI MA Upward Reversal", message="RSI MA has turned upward — possible bullish reversal.")
+alertcondition(maSlopeDown, title="RSI MA Downward Reversal", message="RSI MA has turned downward — possible bearish reversal.")
