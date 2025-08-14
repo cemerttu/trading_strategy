@@ -68,3 +68,180 @@ alertcondition(bullSignal, title="RSI Bullish Pullback Entry", message="RSI cros
 alertcondition(bearSignal, title="RSI Bearish Pullback Entry", message="RSI crossed below its MA while below 40 after a pullback — SELL signal!")
 alertcondition(maSlopeUp, title="RSI MA Upward Reversal", message="RSI MA has turned upward — possible bullish reversal.")
 alertcondition(maSlopeDown, title="RSI MA Downward Reversal", message="RSI MA has turned downward — possible bearish reversal.")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//@version=5
+indicator("Zero-Lag Trend Level", shorttitle="ZLTL", overlay=true, precision=5)
+
+// === Inputs ===
+length      = input.int(34, "Trend Length", minval=2)
+src         = input.source(close, "Source")
+sensitivity = input.float(2.0, "Sensitivity", minval=0.5, step=0.1)
+showBG      = input.bool(true, "Shade Bull/Bear Zones")
+showArrows  = input.bool(true, "Show Trend Change Arrows")
+
+// === Zero-Lag Calculation ===
+// Zero-Lag EMA formula: EMA(src + (src - EMA(src, len)) * sensitivity, len)
+ema1 = ta.ema(src, length)
+zlema_raw = ta.ema(src + (src - ema1) * sensitivity, length)
+
+// Smooth a bit to avoid too much noise
+zlema = ta.ema(zlema_raw, math.max(2, int(length / 3)))
+
+// === Trend Detection ===
+trendUp = zlema > zlema[1]
+trendDn = zlema < zlema[1]
+
+// === Colors ===
+col = trendUp ? color.new(color.teal, 0) : color.new(color.red, 0)
+
+// === Plotting ===
+plot(zlema, "Zero-Lag Trend Level", color=col, linewidth=2)
+
+// Background shading
+bgcolor(showBG ? (trendUp ? color.new(color.teal, 92) : color.new(color.red, 92)) : na)
+
+// Arrows for trend change (kept in global scope with ternary)
+plotshape(showArrows and ta.crossover(zlema, zlema[1]), title="Trend Up", style=shape.triangleup, location=location.belowbar, color=color.teal, size=size.tiny, text="▲")
+plotshape(showArrows and ta.crossunder(zlema, zlema[1]), title="Trend Down", style=shape.triangledown, location=location.abovebar, color=color.red, size=size.tiny, text="▼")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//@version=5
+indicator("Adaptive Pullback Oscillator (APO)", shorttitle="APO", overlay=false, precision=2)
+
+// === Inputs ===
+src         = input.source(close, "Source")
+rsiLen      = input.int(14, "RSI Length", minval=2)
+stochLen    = input.int(14, "Stochastic Length", minval=3)
+rocLen      = input.int(10, "ROC Length (Momentum)", minval=2)
+normLookback= input.int(100, "Normalization Lookback", minval=20)
+wRSI        = input.float(0.40, "Weight: RSI", minval=0, maxval=1, step=0.05)
+wStoch      = input.float(0.40, "Weight: Stochastic", minval=0, maxval=1, step=0.05)
+wMom        = input.float(0.20, "Weight: Momentum", minval=0, maxval=1, step=0.05)
+smoothLen   = input.int(5, "Smoothing Length", minval=1)
+lowLag      = input.bool(true, "Use Low-Lag (HMA-style) Smoothing?")
+signalLen   = input.int(3, "Signal (Change) Smoothing", minval=1)
+
+// Bands & visuals
+upperBand   = input.float(60.0, "Upper Band")
+lowerBand   = input.float(40.0, "Lower Band")
+midline     = 50.0
+showBG      = input.bool(true, "Shade Bull/Bear Zones")
+showDiv     = input.bool(true, "Show Simple Divergence (experimental)")
+
+// === Components ===
+// RSI [0..100]
+rsi = ta.rsi(src, rsiLen)
+
+// Stochastic %K [0..100]
+ll  = ta.lowest(low, stochLen)
+hh  = ta.highest(high, stochLen)
+stoch = hh == ll ? 50.0 : (src - ll) / (hh - ll) * 100.0
+
+// Momentum (ROC) normalized to [0..100]
+roc = 100.0 * (src - src[rocLen]) / nz(src[rocLen], src)
+rocLL = ta.lowest(roc, normLookback)
+rocHH = ta.highest(roc, normLookback)
+momNorm = rocHH == rocLL ? 50.0 : (roc - rocLL) / (rocHH - rocLL) * 100.0
+
+// Normalize weights to sum to 1
+wSum = math.max(wRSI + wStoch + wMom, 0.0001)
+wr = wRSI / wSum
+ws = wStoch / wSum
+wm = wMom / wSum
+
+raw = wr * rsi + ws * stoch + wm * momNorm
+
+// === Smoothing ===
+emaSm(x, l) => ta.ema(x, l)
+hmaLike(x, l) =>
+    l2 = math.max(int(math.floor(l/2)), 1)
+    s1 = ta.ema(x, l2)
+    s2 = ta.ema(x, l)
+    core = 2.0 * s1 - s2
+    ta.ema(core, math.max(int(math.round(math.sqrt(l))), 1))
+
+smooth = lowLag ? hmaLike(raw, smoothLen) : emaSm(raw, smoothLen)
+
+// Signal bias
+ch   = ta.change(smooth)
+bias = ta.ema(ch, signalLen)
+
+// Clamp to [0..100]
+osc = math.min(math.max(smooth, 0.0), 100.0)
+
+// === Signals ===
+bull = osc > upperBand
+bear = osc < lowerBand
+biasUp = bias >= 0
+biasDn = bias < 0
+crossUp60   = ta.crossover(osc, upperBand)
+crossDn40   = ta.crossunder(osc, lowerBand)
+crossMidUp  = ta.crossover(osc, midline)
+crossMidDn  = ta.crossunder(osc, midline)
+
+// === Plotting ===
+col = biasUp ? color.new(color.teal, 0) : color.new(color.red, 0)
+plot(osc, "APO", color=col, linewidth=2)
+h60 = hline(upperBand, "Upper", color=color.new(color.gray, 60))
+h50 = hline(midline,    "Mid",   color=color.new(color.gray, 80))
+h40 = hline(lowerBand, "Lower", color=color.new(color.gray, 60))
+
+fill(h60, h50, color=color.new(color.teal, 92))
+fill(h50, h40, color=color.new(color.red, 92))
+
+plotshape(crossUp60, title="Cross Above 60", style=shape.triangleup, location=location.bottom, size=size.tiny, color=color.teal, text="↑60")
+plotshape(crossDn40, title="Cross Below 40", style=shape.triangledown, location=location.top, size=size.tiny, color=color.red, text="↓40")
+plotshape(crossMidUp, title="Cross Above 50", style=shape.circle, location=location.bottom, size=size.tiny, color=color.new(color.teal, 0), text="↑50")
+plotshape(crossMidDn, title="Cross Below 50", style=shape.circle, location=location.top, size=size.tiny, color=color.new(color.red, 0), text="↓50")
+
+// Background shading fix: keep in global scope
+bgcolor(showBG ? (osc >= midline ? color.new(color.teal, 94) : color.new(color.red, 94)) : na)
+
+// === Simple divergence (optional) ===
+divLen = 5
+pricePH = ta.pivothigh(high, divLen, divLen)
+pricePL = ta.pivotlow(low,  divLen, divLen)
+oscPH   = ta.pivothigh(osc,  divLen, divLen)
+oscPL   = ta.pivotlow(osc,   divLen, divLen)
+
+bearDiv = showDiv and not na(pricePH) and not na(oscPH) and high[divLen] > high[divLen*2] and osc[divLen] < osc[divLen*2]
+bullDiv = showDiv and not na(pricePL) and not na(oscPL) and low[divLen]  < low[divLen*2]  and osc[divLen] > osc[divLen*2]
+
+plotshape(bearDiv, title="Bearish Div", location=location.top,   style=shape.labeldown, color=color.new(color.red, 0),   text="Bear Div",  offset=-divLen)
+plotshape(bullDiv, title="Bullish Div", location=location.bottom,style=shape.labelup,   color=color.new(color.teal, 0),  text="Bull Div", offset=-divLen)
