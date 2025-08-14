@@ -245,3 +245,130 @@ bullDiv = showDiv and not na(pricePL) and not na(oscPL) and low[divLen]  < low[d
 
 plotshape(bearDiv, title="Bearish Div", location=location.top,   style=shape.labeldown, color=color.new(color.red, 0),   text="Bear Div",  offset=-divLen)
 plotshape(bullDiv, title="Bullish Div", location=location.bottom,style=shape.labelup,   color=color.new(color.teal, 0),  text="Bull Div", offset=-divLen)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Alright — let’s break this one down in plain language so you know exactly what’s happening under the hood.
+
+This oscillator I made is called **APO (Adaptive Pullback Oscillator)**.
+It’s a custom blend of **RSI**, **Stochastic**, and a **momentum measure**, all normalized to the same scale (0–100).
+
+---
+
+## **1️⃣ Inputs**
+
+At the top, you have settings to tweak:
+
+* **`src`** → Which price to measure from (close, open, hl2, etc.).
+* **`rsiLen`** → RSI period.
+* **`stochLen`** → Stochastic lookback.
+* **`rocLen`** → Momentum lookback.
+* **`normLookback`** → How far back to normalize momentum.
+* **`wRSI`, `wStoch`, `wMom`** → How much weight to give each part (RSI, Stoch, Momentum).
+* **`smoothLen`** → How smooth the final line should be.
+* **`lowLag`** → If ON, uses HMA-like smoothing (less laggy than EMA).
+* **Bands** → 40, 50, and 60 lines for overbought/oversold/trend bias.
+* **`showBG`** → If ON, colors background by bull/bear bias.
+* **`showDiv`** → If ON, tries to spot divergences.
+
+---
+
+## **2️⃣ Core Calculation**
+
+It builds **three sub-indicators**:
+
+1. **RSI** → measures relative strength of price moves.
+2. **Stochastic %K** → measures position of current price relative to high/low range.
+3. **Momentum (ROC)** → percentage change from X bars ago.
+
+   * This gets **min-max normalized** so it also sits between 0–100.
+
+Each one gets multiplied by your **weight** (wRSI, wStoch, wMom), then summed into one line.
+
+---
+
+## **3️⃣ Smoothing**
+
+* If `lowLag = true` → It runs the raw line through an **HMA-like** filter that’s smoother and reacts faster than EMA.
+* If `lowLag = false` → It just uses an EMA.
+
+---
+
+## **4️⃣ Oscillator Range**
+
+The final smoothed value is clamped to **0–100**, so the bands (40, 50, 60) always mean the same thing no matter the market.
+
+---
+
+## **5️⃣ Signals**
+
+* **`crossUp60`** → Oscillator moves above 60 (momentum breakout).
+* **`crossDn40`** → Oscillator moves below 40 (momentum breakdown).
+* **`crossMidUp`** / **`crossMidDn`** → Crosses of the midline (50) for trend bias.
+* **Bias** → Positive slope (green), negative slope (red).
+
+---
+
+## **6️⃣ Visuals**
+
+* **Main plot**: The oscillator line, colored green when slope is up, red when slope is down.
+* **Horizontal lines**: 60 (upper), 50 (mid), 40 (lower).
+* **Shaded areas**: Between 40–50 and 50–60 to highlight zones.
+* **Shapes/arrows**: Mark when price crosses 60/40/midline.
+* **Background color**: Optional bull/bear shading based on whether osc > 50.
+
+---
+
+## **7️⃣ Divergence Detection (Optional)**
+
+It checks **pivots**:
+
+* **Bearish divergence** → Price makes a higher high, oscillator makes a lower high.
+* **Bullish divergence** → Price makes a lower low, oscillator makes a higher low.
+  These get labeled on the chart as “Bull Div” or “Bear Div.”
+
+---
+
+## **8️⃣ How to Read It**
+
+* **Above 60** → Strong momentum, trend continuation likely.
+* **Below 40** → Weak momentum, possible continuation downward.
+* **Above 50** → Bullish bias.
+* **Below 50** → Bearish bias.
+* **Crosses** → Use 40/60 as potential entry zones; 50 for bias shift.
+* **Divergences** → Potential reversal hints, not standalone signals.
+
+---
+
+If you want, I can now **turn this into a full strategy** that:
+
+* Uses APO for entry conditions.
+* Sets Stop Loss / Take Profit in pips.
+* Uses your Fixed / Conservative / Optimal / Aggressive risk modes.
+* Shows trades + equity curve.
+
+That way this thing goes from *indicator* → *money-making machine*.
+
+Do you want me to wire it up like that?
